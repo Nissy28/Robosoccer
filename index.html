@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>RoboScore</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #1a1a18; min-height: 100vh; }
+  .app { padding: 1rem; max-width: 900px; margin: 0 auto; }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; padding-top: 0.5rem; }
+  .header-title { font-size: 20px; font-weight: 600; }
+  .header-sub { font-size: 12px; color: #888; margin-top: 2px; }
+  .sync-badge { font-size: 12px; color: #3b6d11; display: flex; align-items: center; gap: 5px; background: #eaf3de; padding: 4px 10px; border-radius: 8px; border: 0.5px solid #c0dd97; }
+  .sync-badge.offline { color: #a32d2d; background: #fcebeb; border-color: #f09595; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #639922; animation: pulse 1.2s infinite; }
+  .live-dot.offline { background: #e24b4a; animation: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+  .tab { padding: 8px 20px; border-radius: 8px; border: 0.5px solid #ccc; background: transparent; cursor: pointer; font-size: 14px; color: #666; }
+  .tab.active { background: #fff; color: #1a1a18; font-weight: 500; border-color: #999; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .match-card { background: #fff; border: 0.5px solid #e0ded8; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+  .match-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+  .match-title { font-size: 13px; color: #888; }
+  .match-status { font-size: 12px; padding: 3px 10px; border-radius: 8px; display: flex; align-items: center; gap: 4px; }
+  .status-live { background: #fcebeb; color: #a32d2d; border: 0.5px solid #f09595; }
+  .status-done { background: #f1efe8; color: #5f5e5a; border: 0.5px solid #d3d1c7; }
+  .status-pending { background: #f1efe8; color: #888780; border: 0.5px solid #d3d1c7; }
+
+  .vs-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
+  .team-score { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .team-name { font-size: 15px; font-weight: 500; text-align: center; }
+  .score-display { font-size: 42px; font-weight: 600; min-width: 64px; text-align: center; }
+  .score-btns { display: flex; gap: 8px; }
+  .score-btns button { width: 44px; height: 44px; border-radius: 8px; border: 0.5px solid #ccc; background: #f5f5f0; font-size: 22px; cursor: pointer; color: #1a1a18; transition: background 0.1s; }
+  .score-btns button:active { background: #e0ded8; transform: scale(0.95); }
+  .score-btns .plus { border-color: #9fe1cb; color: #0f6e56; background: #e1f5ee; }
+  .score-btns .minus { border-color: #d3d1c7; color: #5f5e5a; }
+  .vs-label { font-size: 18px; font-weight: 500; color: #bbb; }
+
+  .match-footer { margin-top: 1rem; }
+  .finalize-btn { width: 100%; padding: 10px; border-radius: 8px; border: 0.5px solid #ccc; background: transparent; cursor: pointer; font-size: 14px; color: #666; transition: background 0.15s; }
+  .finalize-btn:hover { background: #f5f5f0; }
+  .finalize-btn.start { border-color: #9fe1cb; color: #0f6e56; background: #e1f5ee; }
+  .finalize-btn.end { border-color: #f09595; color: #a32d2d; background: #fcebeb; }
+  .winner-label { text-align: center; font-size: 13px; color: #888; padding-top: 0.5rem; }
+  .winner-label strong { color: #1a1a18; }
+
+  .leaderboard-wrap { background: #fff; border: 0.5px solid #e0ded8; border-radius: 12px; overflow: hidden; }
+  .leaderboard-table { width: 100%; border-collapse: collapse; }
+  .leaderboard-table th { text-align: left; font-size: 12px; color: #888; font-weight: 400; padding: 8px 14px; border-bottom: 0.5px solid #e0ded8; }
+  .leaderboard-table td { padding: 12px 14px; font-size: 14px; border-bottom: 0.5px solid #e0ded8; }
+  .leaderboard-table tr:last-child td { border-bottom: none; }
+  .rank-badge { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; background: #f1efe8; color: #888; }
+  .rank-1 { background: #faeeda; color: #633806; }
+  .rank-2 { background: #e6f1fb; color: #0c447c; }
+  .rank-3 { background: #faece7; color: #712b13; }
+
+  .setup-section { margin-bottom: 1.5rem; }
+  .section-label { font-size: 12px; color: #888; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .setup-card { background: #fff; border: 0.5px solid #e0ded8; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+  .setup-card label { font-size: 12px; color: #888; display: block; margin-bottom: 6px; }
+  .setup-card input, .setup-card select { width: 100%; padding: 9px 12px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; color: #1a1a18; font-size: 14px; outline: none; }
+  .setup-card input:focus, .setup-card select:focus { border-color: #9fe1cb; box-shadow: 0 0 0 3px rgba(31,158,117,0.1); }
+  .input-row { display: flex; gap: 8px; }
+  .input-row input { flex: 1; }
+  .add-btn { padding: 9px 18px; border-radius: 8px; border: 0.5px solid #9fe1cb; background: #e1f5ee; color: #0f6e56; cursor: pointer; font-size: 14px; white-space: nowrap; }
+  .add-btn:hover { background: #9fe1cb; }
+  .team-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .team-tag { padding: 5px 12px; border-radius: 8px; background: #f1efe8; font-size: 13px; color: #5f5e5a; border: 0.5px solid #d3d1c7; display: flex; align-items: center; gap: 6px; }
+  .team-tag .remove { cursor: pointer; color: #bbb; font-size: 16px; line-height: 1; }
+  .team-tag .remove:hover { color: #e24b4a; }
+  .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .create-btn { width: 100%; padding: 11px; border-radius: 8px; border: 0.5px solid #9fe1cb; background: #e1f5ee; color: #0f6e56; cursor: pointer; font-size: 14px; font-weight: 500; }
+  .create-btn:hover { background: #9fe1cb; }
+
+  .empty-state { text-align: center; padding: 2.5rem; color: #aaa; font-size: 14px; }
+
+  .firebase-setup { background: #fff; border: 0.5px solid #fac775; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
+  .firebase-setup h3 { font-size: 15px; font-weight: 500; margin-bottom: 0.5rem; color: #633806; }
+  .firebase-setup p { font-size: 13px; color: #888780; margin-bottom: 1rem; line-height: 1.6; }
+  .firebase-setup input { width: 100%; padding: 9px 12px; border-radius: 8px; border: 0.5px solid #ccc; font-size: 13px; margin-bottom: 8px; font-family: monospace; color: #1a1a18; outline: none; }
+  .firebase-setup input:focus { border-color: #fac775; }
+  .connect-btn { width: 100%; padding: 10px; border-radius: 8px; border: 0.5px solid #fac775; background: #faeeda; color: #633806; cursor: pointer; font-size: 14px; font-weight: 500; }
+  .connect-btn:hover { background: #fac775; }
+  .info-note { font-size: 12px; color: #888; background: #f5f5f0; border-radius: 8px; padding: 10px 12px; margin-top: 8px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div>
+      <div class="header-title">RoboScore</div>
+      <div class="header-sub">Robotics competition scorer</div>
+    </div>
+    <div class="sync-badge" id="sync-badge">
+      <span class="live-dot" id="sync-dot"></span>
+      <span id="sync-label">Connecting...</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('matches',this)">Matches</button>
+    <button class="tab" onclick="showTab('leaderboard',this)">Leaderboard</button>
+    <button class="tab" onclick="showTab('setup',this)">Setup</button>
+    <button class="tab" onclick="showTab('config',this)">Config</button>
+  </div>
+
+  <!-- MATCHES -->
+  <div id="matches" class="section active">
+    <div id="match-list"></div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div id="leaderboard" class="section">
+    <div class="leaderboard-wrap">
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Team</th><th>W</th><th>L</th><th>D</th><th>Pts scored</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SETUP -->
+  <div id="setup" class="section">
+    <div class="setup-section">
+      <div class="section-label">Teams</div>
+      <div class="setup-card">
+        <label>Add team (max 10)</label>
+        <div class="input-row">
+          <input type="text" id="team-input" placeholder="e.g. Team Titanium" onkeydown="if(event.key==='Enter')addTeam()" />
+          <button class="add-btn" onclick="addTeam()">Add</button>
+        </div>
+        <div class="team-list" id="team-list"></div>
+      </div>
+    </div>
+
+    <div class="setup-section">
+      <div class="section-label">Create match</div>
+      <div class="setup-card">
+        <div class="setup-grid" style="margin-bottom:12px;">
+          <div>
+            <label>Team A</label>
+            <select id="team-a-select"><option value="">Select team</option></select>
+          </div>
+          <div>
+            <label>Team B</label>
+            <select id="team-b-select"><option value="">Select team</option></select>
+          </div>
+        </div>
+        <button class="create-btn" onclick="createMatch()">+ Create match</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIG -->
+  <div id="config" class="section">
+    <div class="firebase-setup">
+      <h3>Firebase real-time sync</h3>
+      <p>To sync scores across all iPads in real time, connect a free Firebase Realtime Database. All referees on the same Wi-Fi (or internet) will see score updates instantly.</p>
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">Firebase Database URL</label>
+      <input type="text" id="fb-url" placeholder="https://your-project-default-rtdb.firebaseio.com" />
+      <button class="connect-btn" onclick="connectFirebase()">Connect & sync</button>
+      <div class="info-note">
+        <strong>How to get your Firebase URL:</strong><br>
+        1. Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a><br>
+        2. Create a new project → Realtime Database → Create database (test mode)<br>
+        3. Copy the URL shown (ends in .firebaseio.com) and paste above<br>
+        4. Open this same HTML file on all iPads and enter the same URL
+      </div>
+    </div>
+    <div class="setup-card">
+      <label>Reset all data</label>
+      <p style="font-size:13px;color:#888;margin:6px 0 12px;">Clears all teams, matches, and scores from this device (and Firebase if connected).</p>
+      <button onclick="resetAll()" style="padding:9px 18px;border-radius:8px;border:0.5px solid #f09595;background:#fcebeb;color:#a32d2d;cursor:pointer;font-size:14px;">Reset everything</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+let teams = [];
+let matches = [];
+let nextId = 1;
+let db = null;
+let fbRef = null;
+
+// ── Firebase ──────────────────────────────────────────────
+function connectFirebase() {
+  const url = document.getElementById('fb-url').value.trim();
+  if (!url || !url.includes('firebaseio.com')) { alert('Please enter a valid Firebase URL.'); return; }
+  localStorage.setItem('fb-url', url);
+  initFirebase(url);
+}
+
+function initFirebase(url) {
+  try {
+    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp({ databaseURL: url });
+    db = firebase.database(app);
+    fbRef = db.ref('roboscore');
+    fbRef.on('value', snap => {
+      const data = snap.val();
+      if (data) {
+        teams = data.teams || [];
+        matches = data.matches || [];
+        nextId = data.nextId || 1;
+        renderAll();
+      }
+    });
+    fbRef.on('value', () => setSyncStatus(true));
+    db.ref('.info/connected').on('value', snap => setSyncStatus(snap.val() === true));
+  } catch(e) {
+    setSyncStatus(false);
+    console.error(e);
+  }
+}
+
+function saveState() {
+  const state = { teams, matches, nextId };
+  if (fbRef) {
+    fbRef.set(state);
+  } else {
+    try { localStorage.setItem('roboscore-local', JSON.stringify(state)); } catch(e) {}
+  }
+}
+
+function loadLocal() {
+  try {
+    const d = localStorage.getItem('roboscore-local');
+    if (d) { const s = JSON.parse(d); teams = s.teams||[]; matches = s.matches||[]; nextId = s.nextId||1; }
+  } catch(e) {}
+}
+
+function setSyncStatus(online) {
+  const badge = document.getElementById('sync-badge');
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  if (online) {
+    badge.className = 'sync-badge';
+    dot.className = 'live-dot';
+    label.textContent = 'Live sync active';
+  } else {
+    badge.className = 'sync-badge offline';
+    dot.className = 'live-dot offline';
+    label.textContent = db ? 'Reconnecting...' : 'Local only';
+  }
+}
+
+// ── Tabs ──────────────────────────────────────────────────
+function showTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(name).classList.add('active');
+  el.classList.add('active');
+  renderAll();
+}
+
+function renderAll() {
+  renderMatches();
+  renderLeaderboard();
+  renderSetup();
+}
+
+// ── Matches ───────────────────────────────────────────────
+function renderMatches() {
+  const list = document.getElementById('match-list');
+  if (!matches.length) {
+    list.innerHTML = '<div class="empty-state">No matches yet.<br>Go to Setup to add teams and create matches.</div>';
+    return;
+  }
+  list.innerHTML = matches.map(m => {
+    const statusClass = m.status === 'live' ? 'status-live' : m.status === 'done' ? 'status-done' : 'status-pending';
+    const statusLabel = m.status === 'live' ? '<span class="live-dot" style="width:7px;height:7px;background:#e24b4a;border-radius:50%;display:inline-block;animation:pulse 1.2s infinite;"></span> Live'
+      : m.status === 'done' ? 'Final' : 'Upcoming';
+    const canScore = m.status === 'live';
+    const scoreControls = (team) => canScore ? `
+      <div class="score-btns">
+        <button class="minus" onclick="adjustScore(${m.id},'${team}',-1)">−</button>
+        <button class="plus" onclick="adjustScore(${m.id},'${team}',1)">+</button>
+      </div>` : '';
+    const footer = m.status === 'done'
+      ? `<div class="winner-label">Winner: <strong>${m.scoreA > m.scoreB ? m.teamA : m.scoreA < m.scoreB ? m.teamB : 'Draw'}</strong></div>`
+      : `<button class="finalize-btn ${m.status === 'live' ? 'end' : 'start'}" onclick="toggleMatch(${m.id})">
+          ${m.status === 'live' ? 'Finalize match' : 'Start match'}
+        </button>`;
+    return `
+      <div class="match-card">
+        <div class="match-header">
+          <span class="match-title">Match #${m.id}</span>
+          <span class="match-status ${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="vs-row">
+          <div class="team-score">
+            <div class="team-name">${m.teamA}</div>
+            <div class="score-display">${m.scoreA}</div>
+            ${scoreControls('A')}
+          </div>
+          <div class="vs-label">VS</div>
+          <div class="team-score">
+            <div class="team-name">${m.teamB}</div>
+            <div class="score-display">${m.scoreB}</div>
+            ${scoreControls('B')}
+          </div>
+        </div>
+        <div class="match-footer">${footer}</div>
+      </div>`;
+  }).join('');
+}
+
+function adjustScore(id, team, delta) {
+  const m = matches.find(x => x.id === id);
+  if (!m || m.status !== 'live') return;
+  if (team === 'A') m.scoreA = Math.max(0, m.scoreA + delta);
+  else m.scoreB = Math.max(0, m.scoreB + delta);
+  saveState();
+  if (!fbRef) renderMatches();
+}
+
+function toggleMatch(id) {
+  const m = matches.find(x => x.id === id);
+  if (!m) return;
+  if (m.status === 'pending') m.status = 'live';
+  else if (m.status === 'live') m.status = 'done';
+  saveState();
+  if (!fbRef) renderMatches();
+}
+
+// ── Leaderboard ───────────────────────────────────────────
+function renderLeaderboard() {
+  const stats = {};
+  teams.forEach(t => stats[t] = { wins: 0, losses: 0, draws: 0, points: 0 });
+  matches.filter(m => m.status === 'done').forEach(m => {
+    [m.teamA, m.teamB].forEach(t => { if (!stats[t]) stats[t] = { wins:0, losses:0, draws:0, points:0 }; });
+    stats[m.teamA].points += m.scoreA;
+    stats[m.teamB].points += m.scoreB;
+    if (m.scoreA > m.scoreB) { stats[m.teamA].wins++; stats[m.teamB].losses++; }
+    else if (m.scoreB > m.scoreA) { stats[m.teamB].wins++; stats[m.teamA].losses++; }
+    else { stats[m.teamA].draws++; stats[m.teamB].draws++; }
+  });
+  const sorted = Object.entries(stats).sort((a,b) => b[1].wins - a[1].wins || b[1].points - a[1].points);
+  const tbody = document.getElementById('leaderboard-body');
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#aaa;">No teams yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = sorted.map(([name, s], i) => `
+    <tr>
+      <td><span class="rank-badge ${i<3?'rank-'+(i+1):''}">${i+1}</span></td>
+      <td style="font-weight:${i===0?'600':'400'}">${name}</td>
+      <td>${s.wins}</td><td>${s.losses}</td><td>${s.draws}</td><td>${s.points}</td>
+    </tr>`).join('');
+}
+
+// ── Setup ─────────────────────────────────────────────────
+function renderSetup() {
+  const tl = document.getElementById('team-list');
+  if (tl) tl.innerHTML = teams.map(t =>
+    `<div class="team-tag">${t} <span class="remove" onclick="removeTeam('${t}')">×</span></div>`).join('');
+  const selA = document.getElementById('team-a-select');
+  const selB = document.getElementById('team-b-select');
+  if (selA && selB) {
+    const opts = teams.map(t => `<option value="${t}">${t}</option>`).join('');
+    selA.innerHTML = '<option value="">Select team</option>' + opts;
+    selB.innerHTML = '<option value="">Select team</option>' + opts;
+  }
+}
+
+function addTeam() {
+  const inp = document.getElementById('team-input');
+  const name = inp.value.trim();
+  if (!name || teams.includes(name) || teams.length >= 10) return;
+  teams.push(name);
+  inp.value = '';
+  saveState();
+  if (!fbRef) renderSetup();
+}
+
+function removeTeam(name) {
+  if (!confirm(`Remove "${name}"?`)) return;
+  teams = teams.filter(t => t !== name);
+  saveState();
+  if (!fbRef) renderSetup();
+}
+
+function createMatch() {
+  const a = document.getElementById('team-a-select').value;
+  const b = document.getElementById('team-b-select').value;
+  if (!a || !b || a === b) { alert('Please select two different teams.'); return; }
+  matches.push({ id: nextId++, teamA: a, teamB: b, scoreA: 0, scoreB: 0, status: 'pending' });
+  saveState();
+  if (!fbRef) { renderMatches(); renderSetup(); }
+}
+
+function resetAll() {
+  if (!confirm('Reset all data? This cannot be undone.')) return;
+  teams = []; matches = []; nextId = 1;
+  saveState();
+  if (!fbRef) renderAll();
+}
+
+// ── Init ──────────────────────────────────────────────────
+loadLocal();
+const savedUrl = localStorage.getItem('fb-url');
+if (savedUrl) {
+  document.getElementById('fb-url').value = savedUrl;
+  initFirebase(savedUrl);
+} else {
+  setSyncStatus(false);
+}
+renderAll();
+</script>
+</body>
+</html>
